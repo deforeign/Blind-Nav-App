@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -9,9 +9,16 @@ import {
   KeyboardAvoidingView, 
   Platform,
   ActivityIndicator,
-  StatusBar
+  StatusBar,
+  Animated,
+  Pressable
 } from 'react-native';
-import { cloudClient, piClient } from '../api/client';
+import { cloudClient } from '../api/client'; // Replace with your actual api client import
+
+// Custom Emoji Component to ensure consistent icon rendering
+const RoleIcon = ({ symbol }) => (
+  <Text style={styles.roleIconSymbol} accessibilityElementsHidden={true}>{symbol}</Text>
+);
 
 export default function AuthScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -21,146 +28,196 @@ export default function AuthScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [focusStates, setFocusStates] = useState({ email: false, password: false, pairCode: false });
 
+  // 3D-like Animation Value for the Login Button
+  const scaleLoginBtn = useRef(new Animated.Value(1)).current;
+
+  const animateLoginPressIn = () => {
+    Animated.spring(scaleLoginBtn, { toValue: 0.96, friction: 5, tension: 50, useNativeDriver: true }).start();
+  };
+  const animateLoginPressOut = () => {
+    Animated.spring(scaleLoginBtn, { toValue: 1, friction: 3, tension: 60, useNativeDriver: true }).start();
+  };
+
   const handleAuth = async (type) => {
     if (!email || !password) {
-      Alert.alert("Error", "Please fill email and password");
+      Alert.alert("Input Required", "Please fill in your email and password.");
       return;
     }
     setLoading(true);
     try {
       const endpoint = type === 'login' ? '/auth/login' : '/auth/register';
       const response = await cloudClient.post(endpoint, { email, password, role, pairCode });
+      
+      // Navigate to Home screen and replace Auth from stack
       navigation.replace('Home', { pairCode: response.data.pairCode || pairCode, role: response.data.role || role });
     } catch (error) {
-      Alert.alert("Auth Error", error.response?.data?.error || "Connection failed");
+      Alert.alert("Authentication Failed", error.response?.data?.error || "Could not connect to the server.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <>
-      <StatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-        <View style={styles.gradientBg} />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#050505" />
+      
+      {/* Dynamic Background Decorators */}
+      <View style={styles.blobTop} />
+      <View style={styles.blobBottom} />
+
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>
         <View style={styles.card}>
           <View style={styles.header}>
-            <Text style={styles.title}>BlindNav</Text>
-            <Text style={styles.subtitle}>Navigate with confidence 👁️</Text>
+            <Text style={styles.title}>Drishtikon</Text>
+            <Text style={styles.subtitle}>Empowering your perception</Text>
           </View>
 
-          <TextInput
-            style={[styles.input, focusStates.email && styles.inputFocus]}
-            placeholder="Email"
-            placeholderTextColor="#888"
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            autoCorrect={false}
-            onFocus={() => setFocusStates({...focusStates, email: true})}
-            onBlur={() => setFocusStates({...focusStates, email: false})}
-            accessibilityLabel="Email address"
-            accessibilityHint="Enter your email"
-          />
+          {/* Form Inputs with focus glowing effects */}
+          <View style={styles.inputGroup}>
+            <TextInput
+              style={[styles.input, focusStates.email && styles.inputFocus]}
+              placeholder="Email address"
+              placeholderTextColor="#777"
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              onFocus={() => setFocusStates({...focusStates, email: true})}
+              onBlur={() => setFocusStates({...focusStates, email: false})}
+            />
+            
+            <TextInput
+              style={[styles.input, focusStates.password && styles.inputFocus]}
+              placeholder="Password"
+              placeholderTextColor="#777"
+              secureTextEntry
+              onChangeText={setPassword}
+              onFocus={() => setFocusStates({...focusStates, password: true})}
+              onBlur={() => setFocusStates({...focusStates, password: false})}
+            />
+            
+            <TextInput
+              style={[styles.input, focusStates.pairCode && styles.inputFocus]}
+              placeholder="Pair Code (Optional)"
+              placeholderTextColor="#777"
+              onChangeText={setPairCode}
+              onFocus={() => setFocusStates({...focusStates, pairCode: true})}
+              onBlur={() => setFocusStates({...focusStates, pairCode: false})}
+            />
+          </View>
           
-          <TextInput
-            style={[styles.input, focusStates.password && styles.inputFocus]}
-            placeholder="Password"
-            placeholderTextColor="#888"
-            secureTextEntry
-            onChangeText={setPassword}
-            onFocus={() => setFocusStates({...focusStates, password: true})}
-            onBlur={() => setFocusStates({...focusStates, password: false})}
-            accessibilityLabel="Password"
-            accessibilityHint="Enter your password"
-          />
-          
-          <TextInput
-            style={[styles.input, focusStates.pairCode && styles.inputFocus]}
-            placeholder="Pair Code (e.g. TEAM1)"
-            placeholderTextColor="#888"
-            onChangeText={setPairCode}
-            onFocus={() => setFocusStates({...focusStates, pairCode: true})}
-            onBlur={() => setFocusStates({...focusStates, pairCode: false})}
-            accessibilityLabel="Pair code"
-            accessibilityHint="Enter team pair code"
-          />
-          
+          <Text style={styles.sectionLabel}>SELECT ROLE</Text>
           <View style={styles.roleContainer}>
-            <TouchableOpacity 
-              style={[styles.roleBtn, role === 'blind' && styles.activeRole]}
+            
+            {/* Modern Pressable Role Button 1 (User) */}
+            <Pressable 
               onPress={() => setRole('blind')}
-              accessibilityRole="radio"
-              accessibilityState={{selected: role === 'blind'}}
-              accessibilityLabel="Blind user role"
+              style={({ pressed }) => [
+                styles.roleBtn, 
+                role === 'blind' && styles.activeRole,
+                pressed && { transform: [{ scale: 0.96 }], opacity: 0.9 }
+              ]}
             >
-              <Text style={styles.roleText}>👤 Blind User</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.roleBtn, role === 'advisor' && styles.activeRole]}
+              <View style={styles.roleContent}>
+                <RoleIcon symbol="👤" />
+                <Text style={[styles.roleText, role === 'blind' && styles.activeRoleText]}>User</Text>
+              </View>
+            </Pressable>
+
+            <View style={styles.roleSeparator} />
+
+            {/* Modern Pressable Role Button 2 (Guide) */}
+            <Pressable 
               onPress={() => setRole('advisor')}
-              accessibilityRole="radio"
-              accessibilityState={{selected: role === 'advisor'}}
-              accessibilityLabel="Advisor role"
+              style={({ pressed }) => [
+                styles.roleBtn, 
+                role === 'advisor' && styles.activeRole,
+                pressed && { transform: [{ scale: 0.96 }], opacity: 0.9 }
+              ]}
             >
-              <Text style={styles.roleText}>🧑 Advisor</Text>
-            </TouchableOpacity>
+              <View style={styles.roleContent}>
+                <RoleIcon symbol="🧭" />
+                <Text style={[styles.roleText, role === 'advisor' && styles.activeRoleText]}>Guide</Text>
+              </View>
+            </Pressable>
+
           </View>
 
-          <TouchableOpacity 
-            style={[styles.primaryBtn, loading && styles.disabledBtn]} 
-            onPress={() => handleAuth('login')}
-            disabled={loading}
-            accessibilityLabel="Login button"
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.btnText}>LOGIN</Text>
-            )}
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.secondaryBtn, loading && styles.disabledBtn]} 
-            onPress={() => handleAuth('register')}
-            disabled={loading}
-            accessibilityLabel="Create account button"
-          >
-            <Text style={styles.secondaryBtnText}>CREATE ACCOUNT</Text>
-          </TouchableOpacity>
+          <View style={styles.actionContainer}>
+            {/* Animated Login Button */}
+            <Animated.View style={{ transform: [{ scale: scaleLoginBtn }] }}>
+              <TouchableOpacity 
+                style={[styles.primaryBtn, loading && styles.disabledBtn]} 
+                onPress={() => handleAuth('login')}
+                disabled={loading}
+                activeOpacity={1}
+                onPressIn={animateLoginPressIn}
+                onPressOut={animateLoginPressOut}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.btnText}>Login</Text>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+            
+            <TouchableOpacity 
+              style={styles.secondaryBtn} 
+              onPress={() => handleAuth('register')}
+              disabled={loading}
+            >
+              <Text style={styles.secondaryBtnText}>Create new account</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: '#0a0a0a', 
+    backgroundColor: '#050505', 
+  },
+  keyboardView: {
+    flex: 1,
     justifyContent: 'center', 
-    padding: 24 
+    padding: 20,
   },
-  gradientBg: {
+  // Soft glowing background depth effects
+  blobTop: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'transparent',
-    opacity: 0.3,
+    top: -120,
+    right: -120,
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(108, 99, 255, 0.16)', // Deep Purple/Blue halo
+    transform: [{ scale: 1.6 }],
   },
+  blobBottom: {
+    position: 'absolute',
+    bottom: -100,
+    left: -60,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: 'rgba(0, 212, 255, 0.1)', // Subtle Teal depth
+  },
+  // Main Glassmorphism Card
   card: { 
-    backgroundColor: 'rgba(30, 30, 30, 0.9)',
-    padding: 36,
-    borderRadius: 24,
-    elevation: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.3,
-    shadowRadius: 30,
+    backgroundColor: 'rgba(25, 25, 28, 0.82)',
+    padding: 30,
+    borderRadius: 30,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    backdropFilter: 'blur(20px)',
+    borderColor: 'rgba(255,255,255,0.06)',
+    // Complex 3D Shadow and elevation for depth
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 26 },
+    shadowOpacity: 0.55,
+    shadowRadius: 36,
+    elevation: 20,
   },
   header: {
     alignItems: 'center',
@@ -168,102 +225,114 @@ const styles = StyleSheet.create({
   },
   title: { 
     fontSize: 40, 
-    fontWeight: '900', 
-    color: '#fff', 
-    textAlign: 'center',
-    letterSpacing: -1,
+    fontWeight: '800', 
+    color: '#ffffff', 
+    letterSpacing: -1.6,
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#aaa',
-    textAlign: 'center',
+    fontSize: 14,
+    color: '#999',
     fontWeight: '500',
+    letterSpacing: 0.6,
+  },
+  inputGroup: {
+    marginBottom: 20,
   },
   input: { 
-    backgroundColor: 'rgba(50, 50, 50, 0.8)',
+    backgroundColor: '#121212',
     color: '#fff', 
     padding: 18, 
     borderRadius: 16, 
-    marginBottom: 20,
+    marginBottom: 14,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    borderColor: '#222',
   },
   inputFocus: {
-    borderColor: '#007bff',
-    backgroundColor: 'rgba(60, 60, 60, 0.9)',
-    shadowColor: '#007bff',
-    shadowOpacity: 0.3,
-    elevation: 8,
+    borderColor: '#6C63FF', // Primary Purple accent on focus
+    backgroundColor: '#1a1a26', // Sightly lighter focused input
+  },
+  sectionLabel: {
+    color: '#666',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.8,
+    marginBottom: 12,
+    marginLeft: 6,
   },
   roleContainer: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
-    marginBottom: 32,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
+    marginBottom: 36,
   },
   roleBtn: { 
     flex: 1, 
-    paddingVertical: 16, 
-    alignItems: 'center', 
-    borderRadius: 12,
-    marginHorizontal: 8,
-    backgroundColor: 'transparent',
+    paddingVertical: 18, 
+    borderRadius: 20,
+    backgroundColor: '#121212',
+    borderWidth: 1,
+    borderColor: '#222',
   },
   activeRole: { 
-    backgroundColor: 'rgba(0, 123, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(0, 123, 255, 0.3)',
+    backgroundColor: 'rgba(108, 99, 255, 0.1)', // Soft glow for active button
+    borderColor: '#6C63FF', // Stronger accent border
+  },
+  roleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleIconSymbol: {
+    fontSize: 22,
+    marginRight: 8,
   },
   roleText: { 
-    color: '#ccc', 
+    color: '#888', 
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  activeRoleText: {
+    color: '#6C63FF',
     fontWeight: '700',
-    fontSize: 16,
+  },
+  roleSeparator: {
+    width: 12,
+  },
+  actionContainer: {
+    marginTop: 10,
   },
   primaryBtn: { 
-    backgroundColor: '#007bff',
+    backgroundColor: '#6C63FF',
     paddingVertical: 18, 
     borderRadius: 16, 
     alignItems: 'center',
     marginBottom: 16,
-    shadowColor: '#007bff',
-    shadowOffset: { width: 0, height: 8 },
+    // Complex shadow/glow for the primary button
+    shadowColor: '#6C63FF',
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  secondaryBtn: {
-    backgroundColor: 'rgba(40, 167, 69, 0.9)',
-    paddingVertical: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-    shadowColor: '#28a745',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowRadius: 18,
+    elevation: 10,
   },
   disabledBtn: {
-    opacity: 0.7,
+    backgroundColor: '#4a44b3',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   btnText: { 
     color: '#fff', 
-    fontWeight: '800', 
-    fontSize: 18,
-    letterSpacing: 1,
+    fontWeight: '700', 
+    fontSize: 16,
+    letterSpacing: 0.6,
+  },
+  secondaryBtn: {
+    paddingVertical: 14,
+    alignItems: 'center',
   },
   secondaryBtnText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 18,
-    letterSpacing: 1,
+    color: '#aaa',
+    fontWeight: '600',
+    fontSize: 15,
   },
 });
